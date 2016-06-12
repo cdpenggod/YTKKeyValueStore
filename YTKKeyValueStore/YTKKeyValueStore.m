@@ -57,6 +57,8 @@ static NSString *const SELECT_ALL_SQL = @"SELECT * from %@";
 
 static NSString *const COUNT_ALL_SQL = @"SELECT count(*) as num from %@";
 
+static NSString *const SELECT_COUNT_ITEMS_SQL = @"SELECT * from %@ ORDER BY createdTime ASC LIMIT 0,%@";
+
 static NSString *const CLEAR_ALL_SQL = @"DELETE from %@";
 
 static NSString *const DELETE_ITEM_SQL = @"DELETE from %@ where id = ?";
@@ -271,7 +273,29 @@ static NSString *const DELETE_ITEMS_WITH_PREFIX_SQL = @"DELETE from %@ where id 
     }
     return result;
 }
-
+-(NSArray *)getObjectWithCount:(NSInteger)count fromTable:(NSString *)tableName{
+    if ([YTKKeyValueStore checkTableName:tableName] == NO) {
+        return nil;
+    }
+    NSString * sql = [NSString stringWithFormat:SELECT_COUNT_ITEMS_SQL,tableName,[NSString stringWithFormat:@"%ld",(long)count]];
+    __block NSMutableArray * result = [NSMutableArray array];
+    [_dbQueue inDatabase:^(FMDatabase *db) {
+        FMResultSet * rs = [db executeQuery:sql];
+        while ([rs next]) {
+            NSError *error = nil;
+            id item = [rs stringForColumn:@"json"];
+            id object = [NSJSONSerialization JSONObjectWithData:[item dataUsingEncoding:NSUTF8StringEncoding]
+                                                        options:(NSJSONReadingAllowFragments) error:&error];
+            if (error) {
+                debugLog(@"ERROR, faild to prase to json.");
+            } else {
+                [result addObject:object];
+            }
+        }
+        [rs close];
+    }];
+    return result;
+}
 - (NSUInteger)getCountFromTable:(NSString *)tableName
 {
     if ([YTKKeyValueStore checkTableName:tableName] == NO) {
